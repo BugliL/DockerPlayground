@@ -2,7 +2,7 @@
 FROM php:5.6-apache
 #MAINTAINER porchn <pichai.chin@gmail.com>
 
-ENV TZ=Europe/Rome
+ENV TZ=Europe/Paris
 # Set Server timezone.
 RUN echo $TZ > /etc/timezone \
     && dpkg-reconfigure -f noninteractive tzdata \
@@ -12,7 +12,6 @@ RUN mkdir -p /etc/apache2/ssl
 
 # Defaul config php.ini
 COPY ./config/php.ini /usr/local/etc/php/
-COPY ./index.php /var/www/html/
 
 # RUN apt-get -y update && apt-get -y upgrade
 RUN apt-get -y update \
@@ -44,7 +43,19 @@ RUN docker-php-ext-configure gd --with-jpeg-dir=/usr/lib \
     && docker-php-ext-configure pdo_odbc --with-pdo-odbc=unixODBC,/usr
 
 # Install Extension mysqli mysql mbstring opcache pdo_mysql gd mcrypt zip imap bcmath soap pdo
+# Old command
+
 RUN docker-php-ext-install mysqli mysql mbstring opcache pdo_mysql gd mcrypt zip imap soap pdo pdo_odbc
+
+RUN apt-get update \
+  && apt-get install -y mysql-server mysql-client default-libmysqlclient-dev --no-install-recommends \
+  && docker-php-ext-install pdo pdo_mysql \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+
+RUN apt-get update \
+    && apt-get install -y vim
 
 # Enable Apache mod_rewrite
 RUN a2enmod rewrite ssl headers
@@ -56,11 +67,19 @@ RUN pecl install memcached-2.2.0 \
 # Imagick
 RUN pecl install imagick \
     && docker-php-ext-enable imagick
+
+# Additional dependences
+RUN pear install http_request2
     
 RUN chown -R www-data:www-data /var/www
 
+# start mysqld
+RUN service mysql start 
+
 # Create Volume
 VOLUME ['/etc/apache2/sites-enabled','/var/www','/var/log/apache2']
+
+ENV EDITOR=vim
 
 EXPOSE 80
 EXPOSE 443
