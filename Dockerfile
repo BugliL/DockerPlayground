@@ -1,38 +1,66 @@
+# La versione sul server e' Debian 10
 FROM php:5.6-apache
-MAINTAINER Mark Wienk <mark@wienkit.nl>
+#MAINTAINER porchn <pichai.chin@gmail.com>
 
-RUN requirements="libpng12-dev libjpeg-dev libjpeg62-turbo libmcrypt4 libmcrypt-dev libcurl3-dev libxml2-dev libxslt-dev libicu-dev libicu52" \
-    && apt-get update && apt-get install -y $requirements && rm -rf /var/lib/apt/lists/* \
-    && docker-php-ext-install pdo_mysql \
-    && docker-php-ext-configure gd --with-jpeg-dir=/usr/lib \
-    && docker-php-ext-install gd \
-    && docker-php-ext-install mcrypt \
-    && docker-php-ext-install mbstring \
-    && docker-php-ext-install soap \
-    && docker-php-ext-install xsl \
-    && docker-php-ext-install intl \
-    && requirementsToRemove="libpng12-dev libjpeg-dev libmcrypt-dev libcurl3-dev libxml2-dev libicu-dev" \
-    && apt-get purge --auto-remove -y $requirementsToRemove \
-    && echo "always_populate_raw_post_data=-1" > /usr/local/etc/php/php.ini
+ENV TZ=Asia/Bangkok
+# Set Server timezone.
+RUN echo $TZ > /etc/timezone \
+    && dpkg-reconfigure -f noninteractive tzdata \
+    && echo date.timezone = $TZ > /usr/local/etc/php/conf.d/docker-php-ext-timezone.ini
 
-RUN curl -sSL https://getcomposer.org/composer.phar -o /usr/bin/composer \
-    && chmod +x /usr/bin/composer \
-    && apt-get update && apt-get install -y zlib1g-dev git && rm -rf /var/lib/apt/lists/* \
-    && docker-php-ext-install zip \
-    && apt-get purge -y --auto-remove zlib1g-dev \
-    && composer selfupdate
+RUN mkdir -p /etc/apache2/ssl
 
-RUN sed -i "s/DocumentRoot \/var\/www\/html/DocumentRoot \/var\/www/" /etc/apache2/apache2.conf \
-    && rm -rf /var/www && mkdir -p /var/www
+# Defaul config php.ini
+COPY ./config/php.ini /usr/local/etc/php/
+COPY ./index.php /var/www/html/
 
-VOLUME ["/var/www"]
+# RUN apt-get -y update && apt-get -y upgrade
+RUN apt-get -y update \
+    && apt-get install -y --no-install-recommends \
+    pdftk \
+    libmemcached11 \
+    libmemcachedutil2 \
+    libmemcached-dev \
+    libz-dev \
+    build-essential \
+    apache2-utils \
+    libmagickwand-dev \
+    imagemagick \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    libc-client2007e-dev \
+    libkrb5-dev \
+    libmcrypt-dev \
+    unixodbc-dev \
+    libav-tools \
+    ffmpeg \
+    && apt-get clean \
+    && rm -r /var/lib/apt/lists/*
 
-WORKDIR /var/www
-RUN usermod -u 1000 www-data
+
+# Config Extension 
+RUN docker-php-ext-configure gd --with-jpeg-dir=/usr/lib \
+    && docker-php-ext-configure imap --with-imap-ssl --with-kerberos \
+    && docker-php-ext-configure pdo_odbc --with-pdo-odbc=unixODBC,/usr
+
+# Install Extension mysqli mysql mbstring opcache pdo_mysql gd mcrypt zip imap bcmath soap pdo
+RUN docker-php-ext-install mysqli mysql mbstring opcache pdo_mysql gd mcrypt zip imap soap pdo pdo_odbc
+
+# Enable Apache mod_rewrite
+RUN a2enmod rewrite ssl headers
+
+# Memcache
+RUN pecl install memcached-2.2.0 \
+    && docker-php-ext-enable memcached
+
+# Imagick
+RUN pecl install imagick \
+    && docker-php-ext-enable imagick
+    
 RUN chown -R www-data:www-data /var/www
-RUN a2enmod rewrite
 
-RUN apt-get update \
-    && apt-get install -y libxslt-dev \
-    && docker-php-ext-install xsl
+# Create Volume
+VOLUME ['/etc/apache2/sites-enabled','/var/www','/var/log/apache2']
 
+EXPOSE 80
+EXPOSE 443
