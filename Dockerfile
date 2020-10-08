@@ -2,7 +2,7 @@
 FROM php:5.6-apache
 #MAINTAINER porchn <pichai.chin@gmail.com>
 
-ENV TZ=Asia/Bangkok
+ENV TZ=Europe/Rome
 # Set Server timezone.
 RUN echo $TZ > /etc/timezone \
     && dpkg-reconfigure -f noninteractive tzdata \
@@ -64,3 +64,4 @@ VOLUME ['/etc/apache2/sites-enabled','/var/www','/var/log/apache2']
 
 EXPOSE 80
 EXPOSE 443
+EXPOSE 3306
